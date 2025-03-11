@@ -1,2 +1,4 @@
 - Learning git.
 - Learning make.
+- Learning ML.
+- Learning RL.
