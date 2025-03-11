@@ -1,0 +1,137 @@
+hello world
+all:
+echo "hello world"
+In this sample, all is a target. The all target here means that we want to print "Hello World" on the terminal. Target is placed before the ':'. The echo is a command to generate the all target.
+The above is a rule in the makefile. No matter how complex a Makefile is, it is organized by rules. Rules are the basic units in a Makefile. A rule consists of targets, prerequisites, and commands. It should be pointed out that the relationship between targets and prerequisites is a dependency, which means that the prerequisites must be met (or built) before the target is built. Prerequisites can be other targets. When a prerequisite is a target, it must be built first.
+Now, we can use make or make all to run this makefile.
+
+Next, we can do some changes to the makefile.
+all:
+echo "hello world"
+test:
+echo "just for test"
+Now, teat is another target. we can run 'make', 'make all' and 'make test' separately and observe the running results.
+The conclusion we have reached is that multiple targets can be defined in a Makefile. When calling the make command, we have to tell it what our target is, that is, what we want it to do. When no specific target is specified, make uses the first target defined in the Makefile as the target for this run. This 'first' target is also called the default target.
+A small improvement: For pre example, When we run make command, the command like echo is printes in terminal. Sometimes it is not we want. If we want to hide these commands, we can add '@' before commands.
+all:
+@echo "hello world"
+test:
+@echo "just for test"
+
+Now, we can do a little change on this makefile again.
+all:test
+@echo "hello world"
+test:
+@echo "just for test"
+When we run 'make', we will find that test target is builted before all target. This change introduces the concept of dependencies in Makefiles. The word 'test' after the 'all' target tells make that the 'all' target depends on the 'test' target, which is called a prerequisite in Makefile. When this kind of target dependency occurs, the make tool will build each target that it depends on in the rule in order from left to right. BTW, in fact, file dependencies are more common in makefiles, that is, targets and dependencies exist in the form of files. The helloworld example is simplified just to illustrate the core concepts with simple statements.
+
+The above hello world example is just a brief introduction to the core concepts of makefile. Now let's try to apply the rules to program compilation and introduce the basic principles of makefile.
+Now we have a simple project with two files, foo.c and main.c
+simple:main.o foo.o
+gcc -o simple main.o foo.o
+main.o:main.c
+gcc -o main.o -c main.c
+foo.o:foo.c
+gcc -o foo.o -c foo.c
+clean:
+rm simple main.o foo.o
+Now, make it and execute the simple program. Last, use make clean to delete files.
+Think about a question: What will happen if we compile again without changing the code?
+The output is 'simple is up to date'. This is exactly what we want to see! When we recompile, we only need to compile the files that have been modified since the last successful compilation, not the entire project.
+Next, We can verify this by modifying foo.c.
+Let's think about another question, why does make know that we have not modified main.c? The answer is the timestamp of the file. When make checks a rule, the method it uses is: if the timestamp of the relevant file in the prerequisite is greater than the timestamp of the target, that is, the file in the prerequisite is newer than the target, then it knows that there is a change, and it is necessary to run the command in the rule to rebuild the target.
+Now we encounter such a problem. Assuming there is a 'clean' file in the directory where the program is located, when we run the make clean command, we will find that make always prompts that the clean file is the latest, instead of deleting the file as we expect. How does Makefile handle this situation? The phony target in Makefile can solve this problem. The phony target can be defined using the .PHONY keyword. Note that it must be capital letters.
+The improved program is as follows:
+.PHONY:clean
+simple:main.o foo.o
+gcc -o simple main.o foo.o
+main.o:main.c
+gcc -o main.o -c main.c
+foo.o:foo.c
+gcc -o foo.o -c foo.c
+clean:
+rm simple main.o foo.o
+After declaring a target with the .PHONY keyword, make does not treat it as a file, but only as a conceptual target. As for the false target, we can imagine that since it is not associated with a file, every time make runs this false target, the commands in the rule will be executed.
+
+Currently our makefike has problems with maintainability and readability. When we need to change the compiler, we have to change it everywhere the compiler is used. This makes maintenance more difficult in large files. For this purpose we introduce the concept of variables.
+.PHONY:clean
+
+CC = gcc
+RM = rm
+EXE = simple
+OBJS = main.o foo.o
+
+$(EXE):$(OBJS)
+$(CC) -o $(EXE) $(OBJS)
+main.o:main.c
+$(CC) -o main.o -c main.c
+foo.o:foo.c
+$(CC) -o foo.o -c foo.c
+clean:
+$(RM) $(EXE) $(OBJS)
+By defining variables, makefile is more concise. In addition to defining variables directly, let's introduce some other variable types.
+
+For each rule, the names of the target and prerequisites will appear multiple times in the rule's command. What's more troublesome is that if you change the name of the target or the dependency, you have to change it in all the commands. Is there a way to simplify this change? For this we need to use automatic variables in Makefile. Here we introduce three of them.
+$@ It is used to represent the goal of a rule.
+$^ It represents all the prerequisites of the rule.
+$< It represents the first prerequisite in the rule.
+
+Now let's improve the makefile.
+.PHONY:clean
+
+CC = gcc
+RM = rm
+EXE = simple
+OBJS = main.o foo.o
+
+$(EXE):$(OBJS)
+$(CC) -o $@ $^
+main.o:main.c
+$(CC) -o $@ -c $^
+foo.o:foo.c
+$(CC) -o $@ -c $^
+clean:
+$(RM) $(EXE) $(OBJS)
+
+In the previous Makefile, there are multiple rules for building target files. For example, although the build commands are the same, main.o and foo.o are described by two rules respectively. This is obviously a point that needs improvement. The concept of pattern in Makefile is used to solve this problem.
+.PHONY:clean
+
+CC = gcc
+RM = rm
+EXE = simple
+OBJS = main.o foo.o
+
+$(EXE):$(OBJS)
+$(CC) -o $@ $^
+%.o:%.c
+$(CC) -o $@ -c $^
+clean:
+$(RM) $(EXE) $(OBJS)
+The pattern is similar to using the % wildcard character.
+The two rules for building the target file have been reduced to one. The makefile has become more concise.
+
+Although we use pattern rules, there is still a problem that we have to specify every source program that needs to be compiled in this Makefile. For a project with many source program files, if you have to update the Makefile every time you add or delete a file, the workload is also very huge.
+Functions are another important tool in makefiles. Here we only introduce two functions.
+
+wildcard function:$(wildcard pattern)
+eg:SRCS = $(wildcard *.c) means get all C program source files from the directory where the current Makefile is located through the wildcard function.
+
+patsubst function:The patsubst function is used to perform string replacement. $(patsubst pattern, replacement, text)
+eg:OBJS = $(patsubst %.c,%.o,$(SRCS))
+
+Now let's improve the makefile again.
+.PHONY:clean
+
+CC = gcc
+RM = rm
+EXE = simple
+SRCS = $(wildcard *.c)
+OBJS = $(patsubst %.c,%.o,$(SRCS))
+
+$(EXE):$(OBJS)
+$(CC) -o $@ $^
+%.o:%.c
+$(CC) -o $@ -c $^
+clean:
+$(RM) $(EXE) $(OBJS)
+Now, let's simulate the situation of adding a source file and see if it can still work normally if we add a file without making any changes to the Makefile.
